@@ -1,12 +1,23 @@
 import argparse
 import os
 import sys
+import json
 
 from openai import OpenAI
 
 API_KEY = os.getenv("OPENROUTER_API_KEY")
 BASE_URL = os.getenv("OPENROUTER_BASE_URL", default="https://openrouter.ai/api/v1")
 
+def Read(file_path: str):
+    try:
+        with open(file_path) as f:
+            return f.read()
+    except FileNotFoundError:
+        return f"Error: The file at {file_path} was not found."
+    except Exception as e:
+        return f"Error reading file: {e}"
+
+          
 
 def main():
     p = argparse.ArgumentParser()
@@ -42,14 +53,31 @@ def main():
         ]
     )
 
+    
+
     if not chat.choices or len(chat.choices) == 0:
         raise RuntimeError("no choices in response")
+    
 
     # You can use print statements as follows for debugging, they'll be visible when running tests.
     print("Logs from your program will appear here!", file=sys.stderr)
 
     # TODO: Uncomment the following line to pass the first stage
-    print(chat.choices[0].message.content)
+    message = chat.choices[0].message
+
+    if  message.tool_calls:
+        tool_call = message.tool_calls[0]
+        tool_name = tool_call.function.name
+        tool_args = json.loads(tool_call.function.arguments)
+        available_tools = {
+            "Read" : Read
+        }
+        if tool_name in available_tools:
+            tool_function = available_tools[tool_name]
+            result = tool_function(**tool_args)
+            print(result)
+    else:
+        print(message.content)
 
 
 if __name__ == "__main__":
