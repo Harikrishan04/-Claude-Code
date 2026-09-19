@@ -2,6 +2,7 @@ import argparse
 import os
 import sys
 import json
+import subprocess
 
 from openai import OpenAI
 
@@ -47,12 +48,31 @@ AVAILABLE_TOOLS_SCHEMA = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "Bash",
+            "description": "Execute a shell command",
+            "parameters": {
+                "type": "object",
+                "required": ["command"],
+                "properties": {
+                    "command":{
+                        "type": "string",
+                        "description": "The command to execute"
+                    }
+                },
+            },
+        },
+    },
+
 ]
 
 def execute_tool(tool_call):
     available_tools = {
             "Read" : read_file,
-            "Write": write_file
+            "Write": write_file,
+            "Bash": bash_cmd
         }
 
     tool_name = tool_call.function.name
@@ -65,7 +85,7 @@ def execute_tool(tool_call):
         tool_function = available_tools[tool_name]
         
         # Ensure the result is always cast to a string for the API
-        return str(tool_function(**tool_args))
+        return tool_function(**tool_args)
         
     except json.JSONDecodeError:
         return "Error: Failed to parse tool arguments from the LLM."
@@ -92,6 +112,16 @@ def write_file(file_path:str,content:str):
     except Exception as e:
         return f"Error writing file: {e}"
 
+
+def bash_cmd(command:str):
+    try:
+        result = subprocess.run(command, shell=True, capture_output=True,text=True)
+        if result.stderr:
+            return result.stderr
+        return result.stdout
+
+    except Exception as e:
+        return f"Error executing {command} : {e}"
 
 def main():
     p = argparse.ArgumentParser()
